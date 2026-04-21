@@ -2,6 +2,10 @@ The game has two modes: **Endless** and **Story**.
 
 In both modes you are against the clock to turn off all red buttons as they appear. If all of the buttons are on then it's game over. However, if you press a button that's not red it will turn red.
 
+## Mode Selection
+
+On boot the board splits vertically: the left two columns glow blue (Endless) and the right two columns glow red (Story). Press any cell to pick a mode. After Game Over or winning, the board returns to this select screen — press any cell to start a fresh run.
+
 ## Game Rules
 
 ### Button Behaviour
@@ -26,7 +30,9 @@ In both modes you are against the clock to turn off all red buttons as they appe
 - Same spawn rate and special button mechanics as endless mode, plus additional mechanics
 - Survive 5 boss fights — board carries over between fights
 - Each fight the boss stays locked longer and the spawn rate starts faster
-- After the 5th boss is cleared, a 5-second break begins — no buttons spawn, giving you time to clear up
+- Fights 1–5 run back-to-back with no break between them; clearing fight N's boss immediately starts fight N+1 and its boss spawns right away. The 115-second boss unlock only applies to fight 1
+- The spawn-rate head start is applied by jumping the spawn ramp's internal clock forward to the new fight's head-start value (if it isn't already further along)
+- After the 5th boss is cleared, a 5-second break begins — the regular spawn-rate timer is suppressed, though any purple or decoy buttons already on the board keep attacking on their normal 1-second cadence. This is a chance to clear the board, not a full freeze
 - Then the Final Boss spawns
 - Defeat the Final Boss to win the game
 - Game over when all 16 buttons are lit — same as endless
@@ -50,10 +56,24 @@ interval = max(0.05, 3.0 - (seconds_alive * 0.01) + (lit_buttons * 0.1))
 
 ### Buttons
 
-Each time a button spawns it has a chance of being a special button instead of red:
-- 85% chance — normal red button
-- 5% chance — gold button
-- 10% chance — purple button (up to 2 on the board at a time)
+Spawning is a two-level roll.
+
+**Primary roll** — decides the broad kind of button:
+- 85% — a would-be red button (see secondary roll below)
+- 5% — gold button
+- 10% — purple button (capped at 2 on the board; if the cap is reached, the purple is replaced by a would-be red)
+
+**Secondary roll** (only when the primary roll picked would-be red):
+- 10% — phantom button
+- 5% — anchor button
+- otherwise — a plain red button
+
+In **Story mode only**, every would-be red additionally gets three independent feature rolls:
+- 25% chance to be **shielded**
+- 5% chance to be **quiet**
+- 10% chance to be a **decoy**
+
+All combinations are legal. A shielded decoy takes one press to break the shield and a second press to trigger the decoy effect. Shielded/quiet/decoy do not apply to phantom or anchor buttons.
 
 ---
 
@@ -70,15 +90,15 @@ Each time a button spawns it has a chance of being a special button instead of r
 - Press it → purple turns off, but any buttons it caused stay lit
 
 **Phantom button:**
-- 10% chance to spawn instead of a red button
-- Flickers on and off on a fixed 1 second on / 1 second off pattern
+- Rolled via the secondary roll (10% of would-be reds, so ~8.5% of spawns overall) — takes the place of a plain red
+- Flickers on and off on a fixed 1 second on / 1 second off pattern, starting lit on spawn
 - Only pressable when lit
 - Counts as a lit button toward game over even when dark
 - Press it when lit to clear it normally
 
 **Anchor button:**
-- 5% chance to spawn, appears green
-- Cannot be cleared while it has 4 or more lit neighbours
+- Rolled via the secondary roll (5% of would-be reds, so ~4.25% of spawns overall) — takes the place of a plain red, appears green
+- Cannot be cleared while it has 4 or more lit neighbours (so only the 4 central cells can ever be locked — corner and edge cells never have enough neighbours)
 - Clear neighbouring buttons first to free it, then press to clear normally
 
 **Boss button:**
@@ -95,18 +115,18 @@ Each time a button spawns it has a chance of being a special button instead of r
 **Story mode only:**
 
 **Quiet button:**
-- 5% chance to spawn, appears as a red button at half brightness — easy to overlook
-- Behaves like a normal red button in all other ways
+- Rolled as an independent 5% feature on every would-be red at spawn time — appears as a red button at half brightness, easy to overlook
+- Behaves like a normal red button in all other ways (and can also be shielded, a decoy, or both)
 
 **Shields:**
-- Any red button has a 25% chance of being shielded
-- Shielded buttons look identical to normal red buttons
+- Rolled as an independent 25% feature on every would-be red at spawn time
+- Shielded buttons look identical to normal red buttons (and to decoys — a decoy can also be shielded)
 - First press breaks the shield — the button still appears red
 - Second press clears it normally
-- A button can be both shielded and a decoy — first press breaks the shield, second press triggers the decoy effect
+- A shielded decoy: first press breaks the shield, second press triggers the decoy effect
 
 **Decoy button:**
-- Any red button has a 10% chance of being a decoy
+- Rolled as an independent 10% feature on every would-be red at spawn time
 - A decoy looks identical to a red button but is actually a purple button in disguise
 - Behaves exactly like a purple button — spawns one random button every second until pressed
 - Press it → stops spawning and disappears
@@ -118,11 +138,32 @@ Each time a button spawns it has a chance of being a special button instead of r
 - All 3 bodyguards must be pressed to reveal which button is the real boss
 - Bodyguards stay white until pressed and teleport to a random dark space every few seconds
 - Reds keep spawning even after the boss is revealed
-- Press the boss → it survives, 3 new bodyguards spawn, and the round escalates
-- 3 rounds total — after the 3rd hit the Final Boss is defeated and the game is won
+- Press the boss → it re-hides (goes back to looking like the bodyguards), 3 brand-new bodyguards spawn in random dark cells, the round counter advances, and the bodyguard teleport interval and burst-of-reds count step to the next row of the round table
+- 3 rounds total — after the 3rd hit the Final Boss is defeated and the game is won. The board turns solid green; press any cell to return to the mode-select screen
 
 | Round | Burst of reds on start | Bodyguard teleport interval |
 |-------|------------------------|----------------------------|
 | 1     | 3                      | every 2 seconds             |
 | 2     | 6                      | every 1.5 seconds           |
 | 3     | 9                      | every 1 second              |
+
+---
+
+## Colours
+
+Quick reference for every on-board colour.
+
+| Colour | Meaning |
+|---|---|
+| Off (black) | Empty cell — safe to press (will turn red). |
+| Red | Lit button. Press to clear. In Story a red may secretly be shielded (takes two presses) or a decoy. |
+| Dim red | Quiet button — a normal red at half brightness (Story only). Behaves like a red. |
+| Gold | Gold button — clears itself plus up to 2 random reds. Decays into a red after 3 seconds. |
+| Purple | Purple attacker — spawns one random button per second until pressed. |
+| Green | Anchor — cannot be cleared while 4+ neighbours are lit. |
+| Blue | Boss — locked while blue; press to clear safely, or let it time out into a red. Its row/column minions also show as red and are locked until the boss resolves. |
+| White | Bodyguard in the Final Boss fight — or the Final Boss itself, hidden among them. |
+| Magenta | Revealed Final Boss — press to advance a round; the third hit wins the game. |
+| Dim red (whole board) | Game over — press any cell to return to the mode-select screen. |
+| Green (whole board) | You won — press any cell to return to the mode-select screen. |
+| Blue (left half) / Red (right half), boot only | Mode select — blue = Endless, red = Story. |
