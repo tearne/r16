@@ -32,7 +32,7 @@ struct Rgb {
     b: u8,
 }
 
-const C_OFF: Rgb = Rgb { r: 0, g: 0, b: 20 };
+const C_OFF: Rgb = Rgb { r: 0, g: 0, b: 0 };
 const C_RED: Rgb = Rgb { r: 255, g: 0, b: 0 };
 const C_GOLD: Rgb = Rgb { r: 255, g: 160, b: 0 };
 const C_PURPLE: Rgb = Rgb { r: 150, g: 0, b: 200 };
@@ -44,7 +44,7 @@ enum Cell {
     Off,
     Red,
     Gold { spawn_ms: u32 },
-    Purple { spawn_ms: u32, last_attack_ms: u32 },
+    Purple { last_attack_ms: u32 },
     Boss { spawn_ms: u32 },
     Minion,
 }
@@ -102,6 +102,17 @@ impl Game {
         g
     }
 
+    fn reset(&mut self) {
+        self.cells = [Cell::Off; NUM_KEYS];
+        self.elapsed_ms = 0;
+        self.next_spawn_ms = 3000;
+        self.last_boss_ms = None;
+        self.game_over = false;
+        if let Some(i) = self.random_off_cell() {
+            self.cells[i] = Cell::Red;
+        }
+    }
+
     fn lit_count(&self) -> u32 {
         self.cells.iter().filter(|c| **c != Cell::Off).count() as u32
     }
@@ -110,11 +121,7 @@ impl Game {
         self.cells.iter().any(|c| matches!(c, Cell::Boss { .. }))
     }
 
-    fn has_purple(&self) -> bool {
-        self.cells.iter().any(|c| matches!(c, Cell::Purple { .. }))
-    }
-
-    fn random_off_cell(&mut self) -> Option<usize> {
+fn random_off_cell(&mut self) -> Option<usize> {
         let mut offs = [0usize; NUM_KEYS];
         let mut n = 0;
         for (i, c) in self.cells.iter().enumerate() {
@@ -151,29 +158,47 @@ impl Game {
         let secs = self.elapsed_ms / 1000;
         // 3000 - secs*50 + lit*100, in ms
         let base: i32 =
-            3000i32 - (secs as i32) * 50 + (self.lit_count() as i32) * 100;
-        if base < 500 {
-            500
+            3000i32 - (secs as i32) * 10 + (self.lit_count() as i32) * 100;
+        if base < 150 {
+            150
         } else {
             base as u32
         }
     }
 
-    /// Raw (unclamped) interval used to decide when the boss unlocks — it
-    /// unlocks once the formula wants to go at or below 500 ms, i.e. once
-    /// seconds_alive has caught up to the difficulty cap.
-    fn raw_interval_capped(&self) -> bool {
+    /// True once the spawn-rate formula has hit its floor. Gates late-game
+    /// mechanics: more specials, extra purples allowed.
+    fn at_plateau(&self) -> bool {
         let secs = self.elapsed_ms / 1000;
-        let base: i32 = 3000i32 - (secs as i32) * 50;
-        base <= 500
+        let base: i32 = 3000i32 - (secs as i32) * 10;
+        base <= 150
+    }
+
+    /// Boss unlocks on a fixed wall-clock timer, independent of the spawn
+    /// ramp — tuning the ramp shouldn't delay the boss.
+    fn boss_unlocked(&self) -> bool {
+        self.elapsed_ms >= 115_000
+    }
+
+    fn purple_count(&self) -> u32 {
+        self.cells
+            .iter()
+            .filter(|c| matches!(c, Cell::Purple { .. }))
+            .count() as u32
     }
 
     fn spawn_one(&mut self) {
-        // Regular spawn: 90% red / 5% gold / 5% purple.
+        // Pre-plateau: 90% red / 5% gold / 5% purple.
+        // At plateau: 80% red / 10% gold / 10% purple.
+        let (gold_cut, purple_cut) = if self.at_plateau() {
+            (80, 90)
+        } else {
+            (90, 95)
+        };
         let roll = self.rng.range(100);
-        let kind = if roll < 90 {
+        let kind = if roll < gold_cut {
             0
-        } else if roll < 95 {
+        } else if roll < purple_cut {
             1
         } else {
             2
@@ -182,17 +207,18 @@ impl Game {
             Some(i) => i,
             None => return,
         };
+        // At plateau, allow up to 2 purples on the board; otherwise cap at 1.
+        let purple_cap = if self.at_plateau() { 2 } else { 1 };
         self.cells[idx] = match kind {
             0 => Cell::Red,
             1 => Cell::Gold {
                 spawn_ms: self.elapsed_ms,
             },
             _ => {
-                if self.has_purple() {
+                if self.purple_count() >= purple_cap {
                     Cell::Red
                 } else {
                     Cell::Purple {
-                        spawn_ms: self.elapsed_ms,
                         last_attack_ms: self.elapsed_ms,
                     }
                 }
@@ -262,6 +288,9 @@ impl Game {
 
     fn tick(&mut self, dt_ms: u32, new_presses: u16) {
         if self.game_over {
+            if new_presses != 0 {
+                self.reset();
+            }
             return;
         }
         // Mix press timing into the RNG for entropy.
@@ -288,15 +317,8 @@ impl Game {
 
         // Purple attacks.
         for i in 0..NUM_KEYS {
-            if let Cell::Purple {
-                spawn_ms,
-                last_attack_ms,
-            } = self.cells[i]
-            {
-                let age = self.elapsed_ms.wrapping_sub(spawn_ms);
-                if age >= 2000
-                    && self.elapsed_ms.wrapping_sub(last_attack_ms) >= 5000
-                {
+            if let Cell::Purple { last_attack_ms, .. } = self.cells[i] {
+                if self.elapsed_ms.wrapping_sub(last_attack_ms) >= 1000 {
                     if let Some(r) = self.random_off_cell() {
                         self.cells[r] = Cell::Red;
                     }
@@ -333,11 +355,11 @@ impl Game {
                 .saturating_add(self.spawn_interval_ms());
         }
 
-        // Boss spawn: once difficulty is capped, every 60s, no boss present.
-        if self.raw_interval_capped() && !self.has_boss() {
+        // Boss spawn: once unlocked, every 30s, no boss present.
+        if self.boss_unlocked() && !self.has_boss() {
             let due = match self.last_boss_ms {
                 None => true,
-                Some(t) => self.elapsed_ms.wrapping_sub(t) >= 60_000,
+                Some(t) => self.elapsed_ms.wrapping_sub(t) >= 30_000,
             };
             if due {
                 self.spawn_boss();
