@@ -30,9 +30,7 @@ On boot the board splits vertically: the left two columns glow blue (Endless) an
 - Same spawn rate and special button mechanics as endless mode, plus additional mechanics
 - Survive 5 boss fights — board carries over between fights
 - Each fight the boss stays locked longer and the spawn rate starts faster
-- Fights 1–5 run back-to-back with no break between them; clearing fight N's boss immediately starts fight N+1 and its boss spawns right away. The 115-second boss unlock only applies to fight 1
-- The spawn-rate head start is applied by jumping the spawn ramp's internal clock forward to the new fight's head-start value (if it isn't already further along)
-- After the 5th boss is cleared, a 5-second break begins — the regular spawn-rate timer is suppressed, though any purple or decoy buttons already on the board keep attacking on their normal 1-second cadence. This is a chance to clear the board, not a full freeze
+- After the 5th boss is cleared, a 10-second break begins — no buttons spawn, giving you time to clear up
 - Then the Final Boss spawns
 - Defeat the Final Boss to win the game
 - Game over when all 16 buttons are lit — same as endless
@@ -103,7 +101,7 @@ All combinations are legal. A shielded decoy takes one press to break the shield
 
 **Boss button:**
 - First spawns after ~115 seconds alive (fixed timer, independent of spawn ramp)
-- Spawns on a dark space once every 30 seconds
+- Spawns on a dark space once every 30 seconds in endless mode, every 60 seconds in story mode
 - Only one on the board at a time
 - On spawn → instantly fills its row and column with red minions (only dark spaces, existing lit buttons are untouched)
 - Minions cannot be cleared while the boss is still blue
@@ -132,7 +130,9 @@ All combinations are legal. A shielded decoy takes one press to break the shield
 - Press it → stops spawning and disappears
 
 **Final Boss:**
+- Appears as a rainbow button — distinct from the regular blue boss
 - Spawns after surviving 5 boss fights
+- Shields and decoys are inactive for the duration of this fight
 - Normal spawn rate is replaced entirely by 1 red button per second for the whole fight
 - The boss and 3 white bodyguard buttons appear on the board — the boss is hidden among them
 - All 3 bodyguards must be pressed to reveal which button is the real boss
