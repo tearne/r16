@@ -26,7 +26,7 @@ In both modes you are against the clock to turn off all red buttons as they appe
 - Same spawn rate and special button mechanics as endless mode, plus additional mechanics
 - Survive 5 boss fights — board carries over between fights
 - Each fight the boss stays locked longer and the spawn rate starts faster
-- After the 5th boss is cleared, a 5-second break begins — no buttons spawn, giving you time to clear up
+- After the 5th boss is cleared, a 10-second break begins — no buttons spawn, giving you time to clear up
 - Then the Final Boss spawns
 - Defeat the Final Boss to win the game
 - Game over when all 16 buttons are lit — same as endless
@@ -83,7 +83,7 @@ Each time a button spawns it has a chance of being a special button instead of r
 
 **Boss button:**
 - First spawns after ~115 seconds alive (fixed timer, independent of spawn ramp)
-- Spawns on a dark space once every 30 seconds
+- Spawns on a dark space once every 30 seconds in endless mode, every 60 seconds in story mode
 - Only one on the board at a time
 - On spawn → instantly fills its row and column with red minions (only dark spaces, existing lit buttons are untouched)
 - Minions cannot be cleared while the boss is still blue
@@ -112,7 +112,9 @@ Each time a button spawns it has a chance of being a special button instead of r
 - Press it → stops spawning and disappears
 
 **Final Boss:**
+- Appears as a rainbow button — distinct from the regular blue boss
 - Spawns after surviving 5 boss fights
+- Shields and decoys are inactive for the duration of this fight
 - Normal spawn rate is replaced entirely by 1 red button per second for the whole fight
 - The boss and 3 white bodyguard buttons appear on the board — the boss is hidden among them
 - All 3 bodyguards must be pressed to reveal which button is the real boss
