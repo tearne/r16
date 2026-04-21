@@ -1,0 +1,15 @@
+[build]
+target = "thumbv6m-none-eabi"
+
+[target.thumbv6m-none-eabi]
+# Runs the freshly-built ELF on a Pico already in BOOTSEL mode.
+# See README.md for install instructions.
+runner = "picotool load -u -v -x -t elf"
+
+rustflags = [
+    "-C", "link-arg=--nmagic",
+    "-C", "link-arg=-Tlink.x",
+]
+
+[env]
+DEFMT_LOG = "info"
