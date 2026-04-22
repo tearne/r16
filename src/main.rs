@@ -38,13 +38,8 @@ const C_GOLD: Rgb = Rgb { r: 255, g: 160, b: 0 };
 const C_PURPLE: Rgb = Rgb { r: 150, g: 0, b: 200 };
 const C_BOSS: Rgb = Rgb { r: 0, g: 120, b: 255 };
 const C_DEAD: Rgb = Rgb { r: 80, g: 0, b: 0 };
-const C_ANCHOR: Rgb = Rgb { r: 0, g: 200, b: 30 };
 const C_WHITE: Rgb = Rgb { r: 200, g: 200, b: 200 };
 const C_WIN: Rgb = Rgb { r: 0, g: 200, b: 0 };
-
-fn dim(c: Rgb) -> Rgb {
-    Rgb { r: c.r / 2, g: c.g / 2, b: c.b / 2 }
-}
 
 /// HSV → RGB with saturation/value = 1. Hue in [0, 360). Used for the
 /// rainbow-cycled Final Boss button.
@@ -75,22 +70,21 @@ enum Mode {
 #[derive(Copy, Clone, PartialEq)]
 enum Cell {
     Off,
-    Red { shielded: bool, quiet: bool },
+    Red { shielded: bool },
     Gold { spawn_ms: u32 },
     Purple { last_attack_ms: u32 },
     Boss { spawn_ms: u32, timeout_ms: u32 },
     Minion,
     Phantom { spawn_ms: u32 },
-    Anchor,
     /// Story-only: looks like a red but attacks like a purple.
-    Decoy { shielded: bool, quiet: bool, last_attack_ms: u32 },
+    Decoy { shielded: bool, last_attack_ms: u32 },
     /// Final Boss only: white, teleports, press to clear.
     Bodyguard,
     /// Final Boss: hidden among bodyguards until all 3 are pressed.
     FinalBoss { revealed: bool },
 }
 
-const PLAIN_RED: Cell = Cell::Red { shielded: false, quiet: false };
+const PLAIN_RED: Cell = Cell::Red { shielded: false };
 
 struct Rng {
     s: u32,
@@ -280,12 +274,10 @@ fn random_off_cell(&mut self) -> Option<usize> {
         let story = self.mode == Mode::Story;
         self.cells[idx] = match kind {
             0 => {
-                // Within a would-be red: 10% phantom, 5% anchor, else red.
+                // Within a would-be red: 10% phantom, else red.
                 let sub = self.rng.range(100);
                 if sub < 10 {
                     Cell::Phantom { spawn_ms: self.elapsed_ms }
-                } else if sub < 15 {
-                    Cell::Anchor
                 } else {
                     self.make_story_red(story)
                 }
@@ -305,23 +297,21 @@ fn random_off_cell(&mut self) -> Option<usize> {
         };
     }
 
-    /// Build a red-ish spawn; in Story this may become a shielded/quiet/decoy
+    /// Build a red-ish spawn; in Story this may become a shielded/decoy
     /// variant. In Endless it's always a plain red.
     fn make_story_red(&mut self, story: bool) -> Cell {
         if !story {
             return PLAIN_RED;
         }
         let shielded = self.rng.range(100) < 25;
-        let quiet = self.rng.range(100) < 20;
         let decoy = self.rng.range(100) < 10;
         if decoy {
             Cell::Decoy {
                 shielded,
-                quiet,
                 last_attack_ms: self.elapsed_ms,
             }
         } else {
-            Cell::Red { shielded, quiet }
+            Cell::Red { shielded }
         }
     }
 
@@ -387,48 +377,29 @@ fn random_off_cell(&mut self) -> Option<usize> {
         ((self.elapsed_ms.wrapping_sub(spawn_ms)) / 1000) % 2 == 0
     }
 
-    fn lit_neighbour_count(&self, i: usize) -> u32 {
-        let row = i / 4;
-        let col = i % 4;
-        let mut n = 0;
-        let offsets: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
-        for (dr, dc) in offsets {
-            let nr = row as i32 + dr;
-            let nc = col as i32 + dc;
-            if nr < 0 || nr >= 4 || nc < 0 || nc >= 4 {
-                continue;
-            }
-            let k = (nr as usize) * 4 + nc as usize;
-            if self.cells[k] != Cell::Off {
-                n += 1;
-            }
-        }
-        n
-    }
-
     fn press(&mut self, i: usize) {
         let cell = self.cells[i];
         match cell {
             Cell::Off => {
                 self.cells[i] = PLAIN_RED;
             }
-            Cell::Red { shielded: true, quiet } => {
+            Cell::Red { shielded: true } => {
                 if self.fight == 7 {
                     // Shields inactive during Final Boss.
                     self.cells[i] = Cell::Off;
                 } else {
-                    self.cells[i] = Cell::Red { shielded: false, quiet };
+                    self.cells[i] = Cell::Red { shielded: false };
                 }
             }
-            Cell::Red { shielded: false, .. } => {
+            Cell::Red { shielded: false } => {
                 self.cells[i] = Cell::Off;
             }
-            Cell::Decoy { shielded: true, quiet, last_attack_ms } => {
+            Cell::Decoy { shielded: true, last_attack_ms } => {
                 if self.fight == 7 {
                     // Shields (and decoy behaviour) inactive during Final Boss.
                     self.cells[i] = Cell::Off;
                 } else {
-                    self.cells[i] = Cell::Decoy { shielded: false, quiet, last_attack_ms };
+                    self.cells[i] = Cell::Decoy { shielded: false, last_attack_ms };
                 }
             }
             Cell::Decoy { shielded: false, .. } => {
@@ -454,11 +425,6 @@ fn random_off_cell(&mut self) -> Option<usize> {
             }
             Cell::Phantom { spawn_ms } => {
                 if self.phantom_lit(spawn_ms) {
-                    self.cells[i] = Cell::Off;
-                }
-            }
-            Cell::Anchor => {
-                if self.lit_neighbour_count(i) == 0 {
                     self.cells[i] = Cell::Off;
                 }
             }
@@ -713,8 +679,8 @@ fn random_off_cell(&mut self) -> Option<usize> {
         for (i, c) in self.cells.iter().enumerate() {
             frame[i] = match c {
                 Cell::Off => C_OFF,
-                Cell::Red { quiet, .. } => if *quiet { dim(C_RED) } else { C_RED },
-                Cell::Decoy { quiet, .. } => if *quiet { dim(C_RED) } else { C_RED },
+                Cell::Red { .. } => C_RED,
+                Cell::Decoy { .. } => C_RED,
                 Cell::Gold { .. } => C_GOLD,
                 Cell::Purple { .. } => C_PURPLE,
                 Cell::Boss { .. } => C_BOSS,
@@ -722,7 +688,6 @@ fn random_off_cell(&mut self) -> Option<usize> {
                 Cell::Phantom { spawn_ms } => {
                     if self.phantom_lit(*spawn_ms) { C_RED } else { C_OFF }
                 }
-                Cell::Anchor => C_ANCHOR,
                 Cell::Bodyguard => C_WHITE,
                 Cell::FinalBoss { revealed: false } => C_WHITE,
                 Cell::FinalBoss { revealed: true } => hue_rgb(self.elapsed_ms / 10),

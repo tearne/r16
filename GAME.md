@@ -64,15 +64,13 @@ Spawning is a two-level roll.
 
 **Secondary roll** (only when the primary roll picked would-be red):
 - 10% — phantom button
-- 5% — anchor button
 - otherwise — a plain red button
 
-In **Story mode only**, every would-be red additionally gets three independent feature rolls:
+In **Story mode only**, every would-be red additionally gets two independent feature rolls:
 - 25% chance to be **shielded**
-- 20% chance to be **quiet**
 - 10% chance to be a **decoy**
 
-All combinations are legal. A shielded decoy takes one press to break the shield and a second press to trigger the decoy effect. Shielded/quiet/decoy do not apply to phantom or anchor buttons.
+All combinations are legal. A shielded decoy takes one press to break the shield and a second press to trigger the decoy effect. Shielded/decoy do not apply to phantom buttons.
 
 ---
 
@@ -95,11 +93,6 @@ All combinations are legal. A shielded decoy takes one press to break the shield
 - Counts as a lit button toward game over even when dark
 - Press it when lit to clear it normally
 
-**Anchor button:**
-- Rolled via the secondary roll (5% of would-be reds, so ~4.25% of spawns overall) — takes the place of a plain red, appears green
-- Can only be cleared when it has zero lit neighbours — any adjacent button (up/down/left/right) locks it
-- Clear every neighbouring button first to free it, then press to clear normally
-
 **Boss button:**
 - First spawns after ~115 seconds alive (fixed timer, independent of spawn ramp)
 - Spawns on a dark space once every 30 seconds in endless mode, every 60 seconds in story mode
@@ -112,10 +105,6 @@ All combinations are legal. A shielded decoy takes one press to break the shield
 ---
 
 **Story mode only:**
-
-**Quiet button:**
-- Rolled as an independent 20% feature on every would-be red at spawn time — appears as a red button at half brightness, easy to overlook
-- Behaves like a normal red button in all other ways (and can also be shielded, a decoy, or both)
 
 **Shields:**
 - Rolled as an independent 25% feature on every would-be red at spawn time
@@ -158,10 +147,8 @@ Quick reference for every on-board colour.
 |---|---|
 | Off (black) | Empty cell — safe to press (will turn red). |
 | Red | Lit button. Press to clear. In Story a red may secretly be shielded (takes two presses) or a decoy. |
-| Dim red | Quiet button — a normal red at half brightness (Story only). Behaves like a red. |
 | Gold | Gold button — clears itself plus up to 2 random reds. Decays into a red after 3 seconds. |
 | Purple | Purple attacker — spawns one random button per second until pressed. |
-| Green | Anchor — cannot be cleared while 4+ neighbours are lit. |
 | Blue | Boss — locked while blue; press to clear safely, or let it time out into a red. Its row/column minions also show as red and are locked until the boss resolves. |
 | White | Bodyguard in the Final Boss fight — or the Final Boss itself, hidden among them. |
 | Magenta | Revealed Final Boss — press to advance a round; the third hit wins the game. |
