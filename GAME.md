@@ -24,7 +24,8 @@ On boot the board splits vertically: the left two columns glow blue (Endless) an
 - No win condition — survive as long as possible
 - Game over when all 16 buttons are lit (no dark spaces left)
 - On game over — all buttons go dim red and the game freezes
-- Press any button to start a fresh run
+- The end screen is held for 3 seconds before a press is accepted — this gives you a moment to register the result and prevents an accidental tap from skipping it
+- After the hold, press any button to return to the mode-select screen
 
 **Story mode:**
 - Same spawn rate and special button mechanics as endless mode, plus additional mechanics
@@ -68,7 +69,7 @@ Spawning is a two-level roll.
 
 In **Story mode only**, every would-be red additionally gets three independent feature rolls:
 - 25% chance to be **shielded**
-- 5% chance to be **quiet**
+- 20% chance to be **quiet**
 - 10% chance to be a **decoy**
 
 All combinations are legal. A shielded decoy takes one press to break the shield and a second press to trigger the decoy effect. Shielded/quiet/decoy do not apply to phantom or anchor buttons.
@@ -96,24 +97,24 @@ All combinations are legal. A shielded decoy takes one press to break the shield
 
 **Anchor button:**
 - Rolled via the secondary roll (5% of would-be reds, so ~4.25% of spawns overall) — takes the place of a plain red, appears green
-- Cannot be cleared while it has 4 or more lit neighbours (so only the 4 central cells can ever be locked — corner and edge cells never have enough neighbours)
-- Clear neighbouring buttons first to free it, then press to clear normally
+- Can only be cleared when it has zero lit neighbours — any adjacent button (up/down/left/right) locks it
+- Clear every neighbouring button first to free it, then press to clear normally
 
 **Boss button:**
 - First spawns after ~115 seconds alive (fixed timer, independent of spawn ramp)
 - Spawns on a dark space once every 30 seconds in endless mode, every 60 seconds in story mode
 - Only one on the board at a time
 - On spawn → instantly fills its row and column with red minions (only dark spaces, existing lit buttons are untouched)
-- Minions cannot be cleared while the boss is still blue
-- Press it → disappears safely, minions become normal clearable red buttons
-- If ignored for 3 seconds → turns red, minions become clearable, clears like a normal red button
+- While blue the boss is fully locked — pressing it does nothing; you can't clear it early
+- Minions also cannot be cleared while the boss is still blue
+- When the boss times out it turns red (and its minions become clearable reds); from that point it clears like a normal red button
 
 ---
 
 **Story mode only:**
 
 **Quiet button:**
-- Rolled as an independent 5% feature on every would-be red at spawn time — appears as a red button at half brightness, easy to overlook
+- Rolled as an independent 20% feature on every would-be red at spawn time — appears as a red button at half brightness, easy to overlook
 - Behaves like a normal red button in all other ways (and can also be shielded, a decoy, or both)
 
 **Shields:**
@@ -139,7 +140,7 @@ All combinations are legal. A shielded decoy takes one press to break the shield
 - Bodyguards stay white until pressed and teleport to a random dark space every few seconds
 - Reds keep spawning even after the boss is revealed
 - Press the boss → it re-hides (goes back to looking like the bodyguards), 3 brand-new bodyguards spawn in random dark cells, the round counter advances, and the bodyguard teleport interval and burst-of-reds count step to the next row of the round table
-- 3 rounds total — after the 3rd hit the Final Boss is defeated and the game is won. The board turns solid green; press any cell to return to the mode-select screen
+- 3 rounds total — after the 3rd hit the Final Boss is defeated and the game is won. The board turns solid green; the screen is held for 3 seconds before accepting a press, then any press returns to the mode-select screen
 
 | Round | Burst of reds on start | Bodyguard teleport interval |
 |-------|------------------------|----------------------------|

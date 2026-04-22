@@ -40,11 +40,28 @@ const C_BOSS: Rgb = Rgb { r: 0, g: 120, b: 255 };
 const C_DEAD: Rgb = Rgb { r: 80, g: 0, b: 0 };
 const C_ANCHOR: Rgb = Rgb { r: 0, g: 200, b: 30 };
 const C_WHITE: Rgb = Rgb { r: 200, g: 200, b: 200 };
-const C_FINAL_BOSS: Rgb = Rgb { r: 255, g: 40, b: 255 };
 const C_WIN: Rgb = Rgb { r: 0, g: 200, b: 0 };
 
 fn dim(c: Rgb) -> Rgb {
     Rgb { r: c.r / 2, g: c.g / 2, b: c.b / 2 }
+}
+
+/// HSV → RGB with saturation/value = 1. Hue in [0, 360). Used for the
+/// rainbow-cycled Final Boss button.
+fn hue_rgb(hue_deg: u32) -> Rgb {
+    let h = hue_deg % 360;
+    let region = h / 60;
+    let f = (h % 60) as u16;
+    let t = ((255 * f) / 60) as u8;
+    let q = 255u8 - t;
+    match region {
+        0 => Rgb { r: 255, g: t, b: 0 },
+        1 => Rgb { r: q, g: 255, b: 0 },
+        2 => Rgb { r: 0, g: 255, b: t },
+        3 => Rgb { r: 0, g: q, b: 255 },
+        4 => Rgb { r: t, g: 0, b: 255 },
+        _ => Rgb { r: 255, g: 0, b: q },
+    }
 }
 const C_SELECT_ENDLESS: Rgb = Rgb { r: 0, g: 80, b: 255 };
 const C_SELECT_STORY: Rgb = Rgb { r: 255, g: 0, b: 0 };
@@ -124,6 +141,9 @@ struct Game {
     final_next_teleport_ms: u32,
     final_next_red_ms: u32,
     won: bool,
+    /// Time spent on the win/lose screen. Presses are ignored until this
+    /// reaches the end-screen hold window.
+    end_hold_ms: u32,
 }
 
 impl Game {
@@ -144,6 +164,7 @@ impl Game {
             final_next_teleport_ms: 0,
             final_next_red_ms: 0,
             won: false,
+            end_hold_ms: 0,
         };
         // Start with one random red.
         if let Some(i) = g.random_off_cell() {
@@ -291,7 +312,7 @@ fn random_off_cell(&mut self) -> Option<usize> {
             return PLAIN_RED;
         }
         let shielded = self.rng.range(100) < 25;
-        let quiet = self.rng.range(100) < 5;
+        let quiet = self.rng.range(100) < 20;
         let decoy = self.rng.range(100) < 10;
         if decoy {
             Cell::Decoy {
@@ -342,8 +363,8 @@ fn random_off_cell(&mut self) -> Option<usize> {
                 }
                 self.pending_boss = true;
             } else {
-                // Cleared fight 5 → 5s break, then final boss (phase 5).
-                self.break_until_ms = self.elapsed_ms.wrapping_add(5_000);
+                // Cleared fight 5 → 10s break, then final boss.
+                self.break_until_ms = self.elapsed_ms.wrapping_add(10_000);
                 self.pending_boss = false;
             }
         }
@@ -392,13 +413,23 @@ fn random_off_cell(&mut self) -> Option<usize> {
                 self.cells[i] = PLAIN_RED;
             }
             Cell::Red { shielded: true, quiet } => {
-                self.cells[i] = Cell::Red { shielded: false, quiet };
+                if self.fight == 7 {
+                    // Shields inactive during Final Boss.
+                    self.cells[i] = Cell::Off;
+                } else {
+                    self.cells[i] = Cell::Red { shielded: false, quiet };
+                }
             }
             Cell::Red { shielded: false, .. } => {
                 self.cells[i] = Cell::Off;
             }
             Cell::Decoy { shielded: true, quiet, last_attack_ms } => {
-                self.cells[i] = Cell::Decoy { shielded: false, quiet, last_attack_ms };
+                if self.fight == 7 {
+                    // Shields (and decoy behaviour) inactive during Final Boss.
+                    self.cells[i] = Cell::Off;
+                } else {
+                    self.cells[i] = Cell::Decoy { shielded: false, quiet, last_attack_ms };
+                }
             }
             Cell::Decoy { shielded: false, .. } => {
                 self.cells[i] = Cell::Off;
@@ -415,9 +446,8 @@ fn random_off_cell(&mut self) -> Option<usize> {
                 self.cells[i] = Cell::Off;
             }
             Cell::Boss { .. } => {
-                self.cells[i] = Cell::Off;
-                self.unminion();
-                self.on_boss_cleared();
+                // Boss is fully locked while blue. It only becomes pressable
+                // once it times out into a red button.
             }
             Cell::Minion => {
                 // Locked while the boss is blue — ignored.
@@ -428,7 +458,7 @@ fn random_off_cell(&mut self) -> Option<usize> {
                 }
             }
             Cell::Anchor => {
-                if self.lit_neighbour_count(i) < 4 {
+                if self.lit_neighbour_count(i) == 0 {
                     self.cells[i] = Cell::Off;
                 }
             }
@@ -514,6 +544,7 @@ fn random_off_cell(&mut self) -> Option<usize> {
 
     fn tick(&mut self, dt_ms: u32, new_presses: u16) {
         if self.game_over || self.won {
+            self.end_hold_ms = self.end_hold_ms.saturating_add(dt_ms);
             return;
         }
         // Mix press timing into the RNG for entropy.
@@ -540,12 +571,22 @@ fn random_off_cell(&mut self) -> Option<usize> {
         }
 
         // Purple / Decoy attacks — spawn one random button every second.
+        // Suppressed during the post-fight-5 break ("no buttons spawn") and
+        // also during the Final Boss fight (decoys are inactive then).
+        let attacks_suppressed = self.in_break() || self.fight == 7;
         for i in 0..NUM_KEYS {
             let last = match self.cells[i] {
                 Cell::Purple { last_attack_ms } => Some(last_attack_ms),
-                Cell::Decoy { last_attack_ms, .. } => Some(last_attack_ms),
+                Cell::Decoy { last_attack_ms, .. } if !attacks_suppressed => {
+                    Some(last_attack_ms)
+                }
+                Cell::Decoy { .. } => None,
                 _ => None,
             };
+            let is_purple = matches!(self.cells[i], Cell::Purple { .. });
+            if is_purple && attacks_suppressed {
+                continue;
+            }
             if let Some(last_attack_ms) = last {
                 if self.elapsed_ms.wrapping_sub(last_attack_ms) >= 1000 {
                     self.spawn_one();
@@ -630,11 +671,16 @@ fn random_off_cell(&mut self) -> Option<usize> {
                         }
                 }
                 Mode::Story => {
-                    // One boss per fight. Fight 1 waits for the 115s unlock;
-                    // fights 2–5 spawn their boss as soon as the prior one is
-                    // cleared (on_boss_cleared sets pending_boss = true).
-                    self.pending_boss && self.fight >= 1 && self.fight <= 5
-                        && (self.fight != 1 || self.boss_unlocked())
+                    // One boss per fight (1..=5). Fight 1 waits for the 115s
+                    // unlock; fights 2–5 wait 60s after the previous boss
+                    // spawn (spec: "every 60 seconds in story mode").
+                    self.pending_boss
+                        && self.fight >= 1
+                        && self.fight <= 5
+                        && match self.last_boss_ms {
+                            None => self.boss_unlocked(),
+                            Some(t) => self.elapsed_ms.wrapping_sub(t) >= 60_000,
+                        }
                 }
             };
             if want_boss {
@@ -679,7 +725,7 @@ fn random_off_cell(&mut self) -> Option<usize> {
                 Cell::Anchor => C_ANCHOR,
                 Cell::Bodyguard => C_WHITE,
                 Cell::FinalBoss { revealed: false } => C_WHITE,
-                Cell::FinalBoss { revealed: true } => C_FINAL_BOSS,
+                Cell::FinalBoss { revealed: true } => hue_rgb(self.elapsed_ms / 10),
             };
         }
         frame
@@ -785,7 +831,10 @@ fn main() -> ! {
             }
             AppState::Playing(game) => {
                 game.tick(LOOP_MS, new_presses);
-                if (game.game_over || game.won) && new_presses != 0 {
+                if (game.game_over || game.won)
+                    && new_presses != 0
+                    && game.end_hold_ms >= 3_000
+                {
                     state = AppState::Select;
                     [C_OFF; NUM_KEYS]
                 } else {
